@@ -54,7 +54,7 @@ CREATE TABLE cardiology_details (
 
 -- Test Seed Data
 INSERT INTO users (email, password_hash)
-VALUES ('admin@hospital.com', '$2b$10$e8.s/5E/1P9N2XpW73L9uO9f5Z1A7G7V.eXyZ1W2V3U4T5S6R7Q8P');
+VALUES ('admin@hospital.com', '$2b$10$G/qA2.mIqbJzl0twwIhps.0ykXyMCs03tm9mxyFCtT5jHkn6g0Ad.');
 
 -- Insert General Patient
 INSERT INTO patients (id, last_name, first_name, admission_date, department)
