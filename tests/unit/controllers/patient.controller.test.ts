@@ -1,23 +1,27 @@
 
 import test from 'tape';
 import * as sinon from 'sinon';
+import bcrypt from 'bcrypt';
+import { db } from '../../../src/config/database';
+import jwt from 'jsonwebtoken';
 
 import { PatientController } from '../../../src/controllers/patient.controller';
 import { PatientService } from '../../../src/services/patient.service';
+import { AuthController } from '../../../src/controllers/auth.controller';
 
 // =====================================================
-// HELPERS : fonctions utilitaires pour les tests
+// HELPERS: Utility functions for the tests
 // =====================================================
 
-// Crée un objet response simulé.
-// On utilise un stub Sinon pour remplacer res.send()
-// et pouvoir vérifier les appels et les arguments envoyés.
+// Creates a mocked response object.
+// A Sinon stub is used to replace res.send()
+// so we can verify the calls and the arguments passed.
 const createResponse = () => ({
     send: sinon.stub()
 });
 
-// Données fictives utilisées comme référence dans les tests.
-// Cela évite de recréer un patient dans chaque scénario.
+// Mock data used as a reference in the tests.
+// This avoids recreating a patient in every test scenario.
 const patient = {
     id: 'patient-123',
     lastName: 'Doe',
@@ -36,32 +40,32 @@ const patient = {
 // GET ALL PATIENTS
 // =====================================================
 
-// TEST 1 : Vérifier la récupération de tous les patients.
+// TEST 1: Verify that all patients are retrieved successfully.
 test('PatientController - getAll', async (t) => {
 
-    // Crée un sandbox pour regrouper les simulations Sinon.
+    // Create a sandbox to group Sinon mocks and stubs.
     const sandbox = sinon.createSandbox();
 
-    // Crée une fausse réponse HTTP.
+    // Create a mocked HTTP response.
     const res = createResponse();
 
     try {
-        // Remplace temporairement getAllPatients() par un stub.
-        // resolves() simule une Promise réussie contenant un patient.
+        // Temporarily replace getAllPatients() with a stub.
+        // resolves() simulates a successful Promise containing a patient.
         sandbox.stub(PatientService.prototype, 'getAllPatients')
             .resolves([patient] as any);
 
-        // Appelle directement le contrôleur avec une requête simulée.
+        // Directly call the controller with a mocked request.
         await PatientController.getAll({} as any, res as any);
 
-        // Vérifie que le contrôleur a envoyé une seule réponse.
+        // Verify that the controller sends the response only once.
         t.ok(
             res.send.calledOnce,
             'Should send the response once'
         );
 
-        // Vérifie les arguments transmis à res.send().
-        // On attend la liste des patients et le statut HTTP 200.
+        // Verify the arguments passed to res.send().
+        // We expect the list of patients and HTTP status code 200.
         t.deepEqual(
             res.send.firstCall.args,
             [[patient], 200],
@@ -69,32 +73,32 @@ test('PatientController - getAll', async (t) => {
         );
 
     } finally {
-        // Restaure les vraies méthodes pour ne pas affecter les autres tests.
+        // Restore the original methods to avoid affecting other tests.
         sandbox.restore();
 
-        // Indique à Tape que le test est terminé.
+        // Notify Tape that the test has finished.
         t.end();
     }
 });
 
 
-// TEST 2 : Vérifier la gestion d'une erreur provenant du service.
+// TEST 2: Verify error handling when the service fails.
 test('PatientController - getAll should handle service errors', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule un échec du service.
-        // rejects() représente une Promise rejetée avec une erreur.
+        // Simulate a service failure.
+        // rejects() represents a rejected Promise containing an error.
         sandbox.stub(PatientService.prototype, 'getAllPatients')
             .rejects(new Error('Database error'));
 
-        // Appelle le contrôleur.
+        // Call the controller.
         await PatientController.getAll({} as any, res as any);
 
-        // Vérifie que le contrôleur intercepte l'erreur
-        // et retourne une réponse HTTP 500.
+        // Verify that the controller catches the error
+        // and returns an HTTP 500 response.
         t.deepEqual(
             res.send.firstCall.args,
             [{ error: 'Database error' }, 500],
@@ -112,20 +116,20 @@ test('PatientController - getAll should handle service errors', async (t) => {
 // CREATE PATIENT
 // =====================================================
 
-// TEST 3 : Vérifier la validation des champs obligatoires.
+// TEST 3: Verify validation of required fields.
 test('PatientController - create should return 400 when required fields are missing', async (t) => {
 
     const res = createResponse();
 
-    // Envoie une requête incomplète :
-    // seul firstName est fourni.
+    // Send an incomplete request:
+    // only firstName is provided.
     await PatientController.create(
         { body: { firstName: 'John' } } as any,
         res as any
     );
 
-    // Vérifie que le contrôleur détecte les champs manquants
-    // et retourne une erreur HTTP 400 (Bad Request).
+    // Verify that the controller detects the missing fields
+    // and returns an HTTP 400 error (Bad Request).
     t.deepEqual(
         res.send.firstCall.args,
         [{
@@ -138,13 +142,13 @@ test('PatientController - create should return 400 when required fields are miss
 });
 
 
-// TEST 4 : Vérifier la création réussie d'un patient.
+// TEST 4: Verify that a patient is created successfully.
 test('PatientController - create should create a patient successfully', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
-    // Données envoyées par le client pour créer un patient.
+    // Data sent by the client to create a patient.
     const input = {
         lastName: 'Doe',
         firstName: 'John',
@@ -153,30 +157,30 @@ test('PatientController - create should create a patient successfully', async (t
     };
 
     try {
-        // Simule createPatient() pour éviter un accès réel à la base.
-        // La méthode retourne le patient fictif préparé plus haut.
+        // Mock createPatient() to avoid accessing the actual database.
+        // The method returns the mock patient defined above.
         const createStub = sandbox.stub(
             PatientService.prototype,
             'createPatient'
         ).resolves(patient as any);
 
-        // Appelle le contrôleur avec les données de création.
+        // Call the controller with the patient creation data.
         await PatientController.create(
             { body: input } as any,
             res as any
         );
 
-        // Vérifie que le service de création a été appelé une seule fois.
+        // Verify that the creation service was called exactly once.
         t.ok(createStub.calledOnce, 'Should call createPatient once');
 
-        // Vérifie que les bonnes données ont été transmises au service.
+        // Verify that the correct data was passed to the service.
         t.deepEqual(
             createStub.firstCall.args[0],
             input,
             'Should pass patient data to the service'
         );
 
-        // Vérifie que le patient créé est retourné avec HTTP 201.
+        // Verify that the created patient is returned with HTTP 201.
         t.deepEqual(
             res.send.firstCall.args,
             [patient, 201],
@@ -190,18 +194,18 @@ test('PatientController - create should create a patient successfully', async (t
 });
 
 
-// TEST 5 : Vérifier la gestion d'une erreur pendant la création.
+// TEST 5: Verify error handling when patient creation fails.
 test('PatientController - create should handle service errors', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule un échec de la méthode createPatient().
+        // Simulate a failure in the createPatient() method.
         sandbox.stub(PatientService.prototype, 'createPatient')
             .rejects(new Error('Creation failed'));
 
-        // Envoie des données valides, mais le service échoue.
+        // Send valid data, but the service returns an error.
         await PatientController.create(
             {
                 body: {
@@ -214,8 +218,8 @@ test('PatientController - create should handle service errors', async (t) => {
             res as any
         );
 
-        // Vérifie que l'erreur est interceptée et renvoyée au client.
-        // Attention : le statut 400 doit être confirmé dans le contrôleur.
+        // Verify that the error is caught and returned to the client.
+        // Note: The status code 400 should be confirmed in the controller.
         t.deepEqual(
             res.send.firstCall.args,
             [{ error: 'Creation failed' }, 400],
@@ -233,26 +237,26 @@ test('PatientController - create should handle service errors', async (t) => {
 // UPDATE PATIENT
 // =====================================================
 
-// TEST 6 : Vérifier la modification réussie d'un patient.
+// TEST 6: Verify that a patient is updated successfully.
 test('PatientController - update should return 200 when successful', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule updatePatient().
-        // true signifie que la modification a réussi.
+        // Mock updatePatient().
+        // true indicates that the update was successful.
         const updateStub = sandbox.stub(
             PatientService.prototype,
             'updatePatient'
         ).resolves(true);
 
-        // Données à modifier.
+        // Data to be updated.
         const input = { lastName: 'Updated' };
 
-        // Simule une requête HTTP avec :
-        // params.id : identifiant du patient dans l'URL.
-        // body : nouvelles données du patient.
+        // Simulate an HTTP request containing:
+        // params.id: the patient ID provided in the URL.
+        // body: the updated patient data.
         await PatientController.update(
             {
                 params: { id: 'patient-123' },
@@ -261,18 +265,18 @@ test('PatientController - update should return 200 when successful', async (t) =
             res as any
         );
 
-        // Vérifie que le service a été appelé une seule fois.
+        // Verify that the service was called exactly once.
         t.ok(updateStub.calledOnce, 'Should call updatePatient once');
 
-        // Vérifie que le contrôleur transmet le bon identifiant
-        // ainsi que les données de modification.
+        // Verify that the controller passes the correct patient ID
+        // along with the updated data.
         t.deepEqual(
             updateStub.firstCall.args,
             ['patient-123', input],
             'Should pass patient ID and update data'
         );
 
-        // Vérifie le message de succès et le statut HTTP 200.
+        // Verify the success message and HTTP status code 200.
         t.deepEqual(
             res.send.firstCall.args,
             [{ message: 'Patient record updated successfully' }, 200],
@@ -286,19 +290,19 @@ test('PatientController - update should return 200 when successful', async (t) =
 });
 
 
-// TEST 7 : Vérifier le comportement lorsque le patient n'existe pas.
+// TEST 7: Verify the behavior when the patient does not exist.
 test('PatientController - update should return 404 when patient does not exist', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule une modification impossible.
-        // false indique que le patient n'a pas été trouvé.
+        // Simulate an unsuccessful update.
+        // false indicates that the patient was not found.
         sandbox.stub(PatientService.prototype, 'updatePatient')
             .resolves(false);
 
-        // Envoie une requête avec un identifiant inconnu.
+        // Send a request with an unknown patient ID.
         await PatientController.update(
             {
                 params: { id: 'unknown-id' },
@@ -307,7 +311,7 @@ test('PatientController - update should return 404 when patient does not exist',
             res as any
         );
 
-        // Vérifie que le contrôleur retourne HTTP 404 (Not Found).
+        // Verify that the controller returns HTTP 404 (Not Found).
         t.deepEqual(
             res.send.firstCall.args,
             [{ error: 'Patient not found' }, 404],
@@ -325,37 +329,37 @@ test('PatientController - update should return 404 when patient does not exist',
 // DELETE PATIENT
 // =====================================================
 
-// TEST 8 : Vérifier la suppression réussie d'un patient.
+// TEST 8: Verify that a patient is deleted successfully.
 test('PatientController - remove should delete a patient successfully', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule deletePatient().
-        // true signifie que le patient a bien été supprimé.
+        // Mock deletePatient().
+        // true indicates that the patient was successfully deleted.
         const deleteStub = sandbox.stub(
             PatientService.prototype,
             'deletePatient'
         ).resolves(true);
 
-        // Appelle le contrôleur avec l'identifiant du patient.
+        // Call the controller with the patient ID.
         await PatientController.remove(
             { params: { id: 'patient-123' } } as any,
             res as any
         );
 
-        // Vérifie que le service de suppression a été appelé une fois.
+        // Verify that the deletion service was called exactly once.
         t.ok(deleteStub.calledOnce, 'Should call deletePatient once');
 
-        // Vérifie que le bon identifiant a été transmis.
+        // Verify that the correct patient ID was passed.
         t.equal(
             deleteStub.firstCall.args[0],
             'patient-123',
             'Should pass the correct patient ID'
         );
 
-        // Vérifie le message de succès et le statut HTTP 200.
+        // Verify the success message and HTTP status code 200.
         t.deepEqual(
             res.send.firstCall.args,
             [{ message: 'Patient record deleted successfully' }, 200],
@@ -369,24 +373,24 @@ test('PatientController - remove should delete a patient successfully', async (t
 });
 
 
-// TEST 9 : Vérifier la suppression d'un patient inexistant.
+// TEST 9: Verify deletion behavior when the patient does not exist.
 test('PatientController - remove should return 404 when patient does not exist', async (t) => {
 
     const sandbox = sinon.createSandbox();
     const res = createResponse();
 
     try {
-        // Simule un échec de suppression parce que le patient n'existe pas.
+        // Simulate a deletion failure because the patient does not exist.
         sandbox.stub(PatientService.prototype, 'deletePatient')
             .resolves(false);
 
-        // Appelle le contrôleur avec un identifiant inconnu.
+        // Call the controller with an unknown patient ID.
         await PatientController.remove(
             { params: { id: 'unknown-id' } } as any,
             res as any
         );
 
-        // Vérifie que le contrôleur retourne HTTP 404.
+        // Verify that the controller returns HTTP 404.
         t.deepEqual(
             res.send.firstCall.args,
             [{ error: 'Patient not found' }, 404],
