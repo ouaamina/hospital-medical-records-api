@@ -1,4 +1,3 @@
-
 import test from 'tape';
 import * as sinon from 'sinon';
 import bcrypt from 'bcrypt';
@@ -118,3 +117,125 @@ test('AUTH - Login with mocked credentials', async (t) => {
         sandbox.restore();
     }
 });
+
+test('AUTH - Login with non-existing user', async (t) => {
+    const sandbox = sinon.createSandbox();
+
+    const firstStub = sandbox.stub().resolves(undefined);
+
+    const whereStub = sandbox.stub().returns({
+        first: firstStub
+    });
+
+    const dbStub = sandbox.stub().returns({
+        where: whereStub
+    });
+
+    const res: any = {
+        send: sandbox.stub()
+    };
+
+    try {
+        const { AuthController: MockAuthController } = proxyquire(
+            '../../../src/controllers/auth.controller',
+            {
+                '../config/database': {
+                    db: dbStub
+                }
+            }
+        );
+
+        const req: any = {
+            body: {
+                email: 'unknown@example.com',
+                password: 'fake-password'
+            }
+        };
+
+        await MockAuthController.login(req, res);
+
+        t.ok(dbStub.calledOnce, 'Should call the database');
+
+        t.ok(
+            res.send.calledOnce,
+            'Should send an error response'
+        );
+
+    
+    } catch (error) {
+        t.fail(String(error));
+    } finally {
+        sandbox.restore();
+    }
+});
+
+test('AUTH - Login with incorrect password', async (t) => {
+    const sandbox = sinon.createSandbox();
+
+    const fakeUser = {
+        id: 1,
+        email: 'fake@example.com',
+        password_hash: 'fake-hash'
+    };
+
+    const firstStub = sandbox.stub().resolves(fakeUser);
+
+    const whereStub = sandbox.stub().returns({
+        first: firstStub
+    });
+
+    const dbStub = sandbox.stub().returns({
+        where: whereStub
+    });
+
+    const bcryptStub = sandbox.stub(bcrypt, 'compare')
+        .resolves(false);
+
+    const jwtStub = sandbox.stub(jwt, 'sign');
+
+    const res: any = {
+        send: sandbox.stub()
+    };
+
+    try {
+        const { AuthController: MockAuthController } = proxyquire(
+            '../../../src/controllers/auth.controller',
+            {
+                '../config/database': {
+                    db: dbStub
+                }
+            }
+        );
+
+        const req: any = {
+            body: {
+                email: 'fake@example.com',
+                password: 'wrong-password'
+            }
+        };
+
+        await MockAuthController.login(req, res);
+
+        t.ok(
+            bcryptStub.calledOnce,
+            'Should compare the password'
+        );
+
+        t.notOk(
+            jwtStub.called,
+            'Should not generate a JWT'
+        );
+
+        t.equal(
+            res.send.firstCall.args[1],
+            401,
+            'Should return HTTP 401'
+        );
+
+    } catch (error) {
+        t.fail(String(error));
+    } finally {
+        sandbox.restore();
+    }
+});
+
